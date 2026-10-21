@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -46,10 +47,17 @@ rows = []
 fetched = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 for city, (lat, lon) in CITIES.items():
     for model in MODELS:
-        try:
-            d = daily_stats(lat, lon, model)
-        except Exception as e:  # e.g. ICON-D2 doesn't cover every city
-            print(f"Skipped {city}/{model}: {e}")
+        d = None
+        for attempt in range(3):  # retry in case of rate limits
+            try:
+                d = daily_stats(lat, lon, model)
+                break
+            except Exception as e:
+                print(f"{city}/{model} attempt {attempt + 1} failed: {e}")
+                time.sleep(20)
+        time.sleep(3)  # be gentle with the free API
+        if d is None:
+            print(f"Skipped {city}/{model}")
             continue
         d.insert(0, "model", model)
         d.insert(0, "city", city)
